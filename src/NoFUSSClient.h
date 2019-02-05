@@ -29,6 +29,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 typedef enum {
     NOFUSS_START,
     NOFUSS_UPTODATE,
+    NOFUSS_UPDATE_AVAILABLE,
     NOFUSS_UPDATING,
     NOFUSS_FILESYSTEM_UPDATED,
     NOFUSS_FIRMWARE_UPDATED,
@@ -52,6 +53,7 @@ class NoFUSSClientClass {
     void setServer(String server);
     void setDevice(String device);
     void setVersion(String version);
+    void setFirmwareType(bool isCore);
 
     String getNewVersion();
     String getNewFirmware();
@@ -61,13 +63,14 @@ class NoFUSSClientClass {
     String getErrorString();
 
     void onMessage(TMessageFunction fn);
-    void handle();
+    void handle(bool autoUpdate);
 
   private:
 
     String _server;
     String _device;
     String _version;
+    bool   _isCore;
 
     String _newVersion;
     String _newFirmware;

@@ -35,6 +35,10 @@ void NoFUSSClientClass::setVersion(String version) {
     _version = version;
 }
 
+void NoFUSSClientClass::setFirmwareType(bool isCore) {
+    _isCore = isCore;
+}
+
 void NoFUSSClientClass::onMessage(TMessageFunction fn) {
     _callback = fn;
 }
@@ -76,8 +80,10 @@ String NoFUSSClientClass::_getPayload() {
     http.addHeader(F("X-ESP8266-MAC"), WiFi.macAddress());
     http.addHeader(F("X-ESP8266-DEVICE"), _device);
     http.addHeader(F("X-ESP8266-VERSION"), _version);
+    http.addHeader(F("X-ESP8266-COREBUILD"), _isCore);
     http.addHeader(F("X-ESP8266-CHIPID"), String(ESP.getChipId()));
     http.addHeader(F("X-ESP8266-CHIPSIZE"), String(ESP.getFlashChipRealSize()));
+    http.addHeader(F("X-ESP8266-OTASIZE"), String((ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000));
 
     int httpCode = http.GET();
     if (httpCode == HTTP_CODE_OK) {
@@ -117,12 +123,14 @@ bool NoFUSSClientClass::_checkUpdates() {
     _newFileSystem = response.get<String>("spiffs");
     _newFirmware = response.get<String>("firmware");
 
-    _doCallback(NOFUSS_UPDATING);
+    _doCallback(NOFUSS_UPDATE_AVAILABLE);
     return true;
 
 }
 
 void NoFUSSClientClass::_doUpdate() {
+
+    _doCallback(NOFUSS_UPDATING);
 
     char url[100];
     bool error = false;
@@ -173,9 +181,11 @@ void NoFUSSClientClass::_doUpdate() {
 
 }
 
-void NoFUSSClientClass::handle() {
+void NoFUSSClientClass::handle(bool autoUpdate) {
     _doCallback(NOFUSS_START);
-    if (_checkUpdates()) _doUpdate();
+    if (_checkUpdates())
+        if(autoUpdate)
+            _doUpdate();
     _doCallback(NOFUSS_END);
 }
 
