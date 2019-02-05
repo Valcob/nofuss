@@ -80,7 +80,7 @@ String NoFUSSClientClass::_getPayload() {
     http.addHeader(F("X-ESP8266-MAC"), WiFi.macAddress());
     http.addHeader(F("X-ESP8266-DEVICE"), _device);
     http.addHeader(F("X-ESP8266-VERSION"), _version);
-    http.addHeader(F("X-ESP8266-COREBUILD"), _isCore);
+    http.addHeader(F("X-ESP8266-COREBUILD"), String(_isCore));
     http.addHeader(F("X-ESP8266-CHIPID"), String(ESP.getChipId()));
     http.addHeader(F("X-ESP8266-CHIPSIZE"), String(ESP.getFlashChipRealSize()));
     http.addHeader(F("X-ESP8266-OTASIZE"), String((ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000));
