@@ -1,6 +1,6 @@
 /*
 
-NOFUSS Client 0.2.5
+NOFUSS Client
 Copyright (C) 2016-2017 by Xose Pérez <xose dot perez at gmail dot com>
 
 This program is free software: you can redistribute it and/or modify
@@ -19,9 +19,25 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "NoFUSSClient.h"
-#include <functional>
+
 #include <ArduinoJson.h>
 #include <ESP8266httpUpdate.h>
+
+#include <functional>
+
+const char NoFUSSUserAgent[] PROGMEM = "NoFussClient";
+constexpr unsigned long NoFUSSTimeout { 1000ul };
+
+namespace {
+String normalizeUrl(const String& server, const String& path) {
+    if (path.startsWith("http")) {
+        return path;
+    }
+
+    return server + '/' + path;
+}
+
+} // namespace
 
 void NoFUSSClientClass::setServer(String server) {
     _server = server;
@@ -33,6 +49,10 @@ void NoFUSSClientClass::setDevice(String device) {
 
 void NoFUSSClientClass::setVersion(String version) {
     _version = version;
+}
+
+void NoFUSSClientClass::setBuild(String build) {
+    _build = build;
 }
 
 void NoFUSSClientClass::setFirmwareType(bool isCore) {
@@ -71,15 +91,18 @@ String NoFUSSClientClass::_getPayload() {
 
     String payload = "";
 
+    WiFiClient client;
     HTTPClient http;
-    http.begin((char *) _server.c_str());
+    http.begin(client, _server.c_str());
+
     http.useHTTP10(true);
     http.setReuse(false);
-    http.setTimeout(HTTP_TIMEOUT);
-    http.setUserAgent(F(HTTP_USERAGENT));
+    http.setTimeout(NoFUSSTimeout);
+    http.setUserAgent(NoFUSSUserAgent);
     http.addHeader(F("X-ESP8266-MAC"), WiFi.macAddress());
     http.addHeader(F("X-ESP8266-DEVICE"), _device);
     http.addHeader(F("X-ESP8266-VERSION"), _version);
+    http.addHeader(F("X-ESP8266-BUILD"), _build);
     http.addHeader(F("X-ESP8266-COREBUILD"), String(_isCore));
     http.addHeader(F("X-ESP8266-CHIPID"), String(ESP.getChipId()));
     http.addHeader(F("X-ESP8266-CHIPSIZE"), String(ESP.getFlashChipRealSize()));
@@ -102,6 +125,7 @@ bool NoFUSSClientClass::_checkUpdates() {
 
     String payload = _getPayload();
     if (payload.length() == 0) {
+        DEBUG_MSG_P(PSTR("[NOFUSS] There is no update."));
         _doCallback(NOFUSS_NO_RESPONSE_ERROR);
         return false;
     }
@@ -110,68 +134,75 @@ bool NoFUSSClientClass::_checkUpdates() {
     JsonObject& response = jsonBuffer.parseObject(payload);
 
     if (!response.success()) {
+        DEBUG_MSG_P(PSTR("[NOFUSS] Failed to get a successfull response"));
         _doCallback(NOFUSS_PARSE_ERROR);
         return false;
     }
 
     if (response.size() == 0) {
+        DEBUG_MSG_P(PSTR("[NOFUSS] The firmware is the latest one"));
         _doCallback(NOFUSS_UPTODATE);
         return false;
     }
 
     _newVersion = response.get<String>("version");
-    _newFileSystem = response.get<String>("spiffs");
     _newFirmware = response.get<String>("firmware");
 
+    if (response.containsKey("fs")) {
+        _newFileSystem = response.get<String>("fs");
+    } else if (response.containsKey("spiffs")) {
+        _newFileSystem = response.get<String>("spiffs");
+    }
+
+    DEBUG_MSG_P(PSTR("[NOFUSS] There is a new firmware %s\n"), _newVersion);
     _doCallback(NOFUSS_UPDATE_AVAILABLE);
     return true;
 
 }
 
+bool NoFUSSClientClass::_doUpdateCallbacks(t_httpUpdate_return result, nofuss_t success, nofuss_t error) {
+    if (result == HTTP_UPDATE_OK) {
+        _doCallback(success);
+        return true;
+    }
+
+    _errorNumber = ESPhttpUpdate.getLastError();
+    _errorString = ESPhttpUpdate.getLastErrorString();
+    _doCallback(error);
+
+    return false;
+}
+
 void NoFUSSClientClass::_doUpdate() {
 
-    _doCallback(NOFUSS_UPDATING);
-
-    char url[100];
     bool error = false;
     uint8_t updates = 0;
 
     ESPhttpUpdate.rebootOnUpdate(false);
 
     if (_newFileSystem.length() > 0) {
+        auto url = normalizeUrl(_server, _newFileSystem);
 
-        // Update SPIFFS
-        sprintf(url, "%s/%s", _server.c_str(), _newFileSystem.c_str());
-        t_httpUpdate_return ret = ESPhttpUpdate.updateSpiffs(url);
-
-        if (ret == HTTP_UPDATE_FAILED) {
+        WiFiClient client;
+        t_httpUpdate_return ret = ESPhttpUpdate.updateFS(client, url);
+        if (_doUpdateCallbacks(ret, NOFUSS_FILESYSTEM_UPDATED, NOFUSS_FILESYSTEM_UPDATE_ERROR)) {
+            ++updates;
+        } else {
             error = true;
-            _errorNumber = ESPhttpUpdate.getLastError();
-            _errorString = ESPhttpUpdate.getLastErrorString();
-            _doCallback(NOFUSS_FILESYSTEM_UPDATE_ERROR);
-        } else if (ret == HTTP_UPDATE_OK) {
-            updates++;
-            _doCallback(NOFUSS_FILESYSTEM_UPDATED);
         }
-
     }
 
     if (!error && (_newFirmware.length() > 0)) {
+        auto url = normalizeUrl(_server, _newFirmware);
 
-        // Update binary
-        sprintf(url, "%s%s", _server.c_str(), _newFirmware.c_str());
-        t_httpUpdate_return ret = ESPhttpUpdate.update(url);
+        WiFiClient client;
+        t_httpUpdate_return ret = ESPhttpUpdate.update(client, url);
 
-        if (ret == HTTP_UPDATE_FAILED) {
+        if (_doUpdateCallbacks(ret, NOFUSS_FIRMWARE_UPDATED, NOFUSS_FIRMWARE_UPDATE_ERROR)) {
+            ++updates;
+        } else {
             error = true;
-            _errorNumber = ESPhttpUpdate.getLastError();
-            _errorString = ESPhttpUpdate.getLastErrorString();
-            _doCallback(NOFUSS_FIRMWARE_UPDATE_ERROR);
-        } else if (ret == HTTP_UPDATE_OK) {
-            updates++;
-            _doCallback(NOFUSS_FIRMWARE_UPDATED);
         }
-
     }
 
     if (!error && (updates > 0)) {
@@ -183,9 +214,15 @@ void NoFUSSClientClass::_doUpdate() {
 
 void NoFUSSClientClass::handle(bool autoUpdate) {
     _doCallback(NOFUSS_START);
-    if (_checkUpdates())
-        if(autoUpdate)
+    DEBUG_MSG_P(PSTR("[NOFUSS] Checking for firmware updates..."));
+    if (_checkUpdates()){
+        DEBUG_MSG_P(PSTR("[NOFUSS] Should update? %s\n"), (_isCore || autoUpdate)? "yes": "no");
+        if(autoUpdate || _isCore){
+            DEBUG_MSG_P(PSTR("[NOFUSS] Updating... "));
             _doUpdate();
+        }
+    }
+    DEBUG_MSG_P(PSTR("[NOFUSS] Done!!!"));
     _doCallback(NOFUSS_END);
 }
 

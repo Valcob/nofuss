@@ -13,3 +13,5 @@ credentials.h
 .clang_complete
 .gcc-flags.json
 remotes
+.idea*
+.vscode*

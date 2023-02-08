@@ -1,6 +1,6 @@
 /*
 
-NOFUSS Client 0.2.5
+NOFUSS Client
 Copyright (C) 2016-2017 by Xose Pérez <xose dot perez at gmail dot com>
 
 This program is free software: you can redistribute it and/or modify
@@ -18,13 +18,10 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 */
 
-#ifndef _NOFUSS_h
-#define _NOFUSS_h
+#pragma once
 
-#include <functional>
-#include <Stream.h>
-#include <ArduinoJson.h>
 #include <ESP8266httpUpdate.h>
+#include <functional>
 
 typedef enum {
     NOFUSS_START,
@@ -41,9 +38,6 @@ typedef enum {
     NOFUSS_FIRMWARE_UPDATE_ERROR
 } nofuss_t;
 
-#define HTTP_TIMEOUT    10000
-#define HTTP_USERAGENT  "NoFussClient"
-
 class NoFUSSClientClass {
 
   public:
@@ -53,6 +47,7 @@ class NoFUSSClientClass {
     void setServer(String server);
     void setDevice(String device);
     void setVersion(String version);
+    void setBuild(String build);
     void setFirmwareType(bool isCore);
 
     String getNewVersion();
@@ -70,6 +65,7 @@ class NoFUSSClientClass {
     String _server;
     String _device;
     String _version;
+    String _build;
     bool   _isCore;
 
     String _newVersion;
@@ -83,11 +79,10 @@ class NoFUSSClientClass {
 
     String _getPayload();
     bool _checkUpdates();
+    bool _doUpdateCallbacks(t_httpUpdate_return result, nofuss_t success, nofuss_t error);
     void _doUpdate();
     void _doCallback(nofuss_t message);
 
 };
 
 extern NoFUSSClientClass NoFUSSClient;
-
-#endif /* _NOFUSS_h */

@@ -3,6 +3,32 @@
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## [0.3.0] 2019-06-04
+### Added
+- Added more version checks (lt, le, eq, ge, gt)
+
+### Changed
+- Changed build to build_not in json file
+- Autocreate spiffs tag in response if there is none
+
+### Deprecated
+- Use `ge` and `lt` instead of `min` and `max` in filters
+  
+## [0.2.7] 2019-05-26
+### Fixed
+- Make it backwards compatible using HTTPUPDATE_1_2_COMPATIBLE flag
+- Added build header to log
+
+## [0.2.6] 2019-05-25
+### Added
+- Option to define multiple MAC addresses for the same origin
+- Option to define a "build" filter for dev versions
+- Added docker-compose image
+
+### Changed
+- Documentation updates
+- Updated HTTPClient and HTTPUpdateClient libraries
+
 ## [0.2.5] 2017-08-28
 ### Changed
 - Report HTTP error for callbacks

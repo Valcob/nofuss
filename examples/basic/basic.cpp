@@ -29,9 +29,13 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 // See credentials.h (copy it from credentials.sample.h)
 // for specific configuration
-
+#ifndef DEVICE
 #define DEVICE                  "TEST"
+#endif
+#ifndef VERSION
 #define VERSION                 "0.0.9"
+#endif
+#define BUILD                   ""
 #define NOFUSS_INTERVAL         10000
 #define WIFI_CONNECT_TIMEOUT    20000
 #define WIFI_RECONNECT_DELAY    5000
@@ -45,6 +49,8 @@ void nofussSetup() {
     NoFUSSClient.setServer(NOFUSS_SERVER);
     NoFUSSClient.setDevice(DEVICE);
     NoFUSSClient.setVersion(VERSION);
+    NoFUSSClient.setBuild(BUILD);
+    NoFUSSClient.setFirmwareType(true);
 
     NoFUSSClient.onMessage([](nofuss_t code) {
 
@@ -103,7 +109,7 @@ void nofussLoop() {
     if ((last_check > 0) && ((millis() - last_check) < NOFUSS_INTERVAL)) return;
     last_check = millis();
 
-    NoFUSSClient.handle();
+    NoFUSSClient.handle(false);
 
 }
 
@@ -137,7 +143,7 @@ void wifiSetup() {
         Serial.printf("[WIFI] STATION Mode, SSID: %s, IP address: %s\n", WiFi.SSID().c_str(), WiFi.localIP().toString().c_str());
 
         // Check for updates!
-        NoFUSSClient.handle();
+        NoFUSSClient.handle(false);
 
     } else {
 
