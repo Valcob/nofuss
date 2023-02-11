@@ -2,7 +2,8 @@
 #include <Arduino.h>
 #include <cstring>
 
-#if DEBUG_SUPPORT
+#if DEBUG_NOFUSS
+#ifndef DEBUG_SUPPORT
 
 void _debugSendSerial(const char* prefix, const char* data) {
     if (prefix && (prefix[0] != '\0')) {
@@ -67,3 +68,4 @@ void debugSend_P(PGM_P format_P, ...) {
 }
 
 #endif // DEBUG_SUPPORT
+#endif // DEBUG_NOFUSS

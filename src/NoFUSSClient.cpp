@@ -125,7 +125,7 @@ bool NoFUSSClientClass::_checkUpdates() {
 
     String payload = _getPayload();
     if (payload.length() == 0) {
-        DEBUG_MSG_P(PSTR("[NOFUSS] There is no update."));
+        NOFUSS_DEBUG_MSG_P(PSTR("[NOFUSS] There is no update."));
         _doCallback(NOFUSS_NO_RESPONSE_ERROR);
         return false;
     }
@@ -134,13 +134,13 @@ bool NoFUSSClientClass::_checkUpdates() {
     JsonObject& response = jsonBuffer.parseObject(payload);
 
     if (!response.success()) {
-        DEBUG_MSG_P(PSTR("[NOFUSS] Failed to get a successfull response"));
+        NOFUSS_DEBUG_MSG_P(PSTR("[NOFUSS] Failed to get a successfull response"));
         _doCallback(NOFUSS_PARSE_ERROR);
         return false;
     }
 
     if (response.size() == 0) {
-        DEBUG_MSG_P(PSTR("[NOFUSS] The firmware is the latest one"));
+        NOFUSS_DEBUG_MSG_P(PSTR("[NOFUSS] The firmware is the latest one"));
         _doCallback(NOFUSS_UPTODATE);
         return false;
     }
@@ -154,7 +154,7 @@ bool NoFUSSClientClass::_checkUpdates() {
         _newFileSystem = response.get<String>("spiffs");
     }
 
-    DEBUG_MSG_P(PSTR("[NOFUSS] There is a new firmware %s\n"), _newVersion);
+    NOFUSS_DEBUG_MSG_P(PSTR("[NOFUSS] There is a new firmware %s\n"), _newVersion);
     _doCallback(NOFUSS_UPDATE_AVAILABLE);
     return true;
 
@@ -214,15 +214,15 @@ void NoFUSSClientClass::_doUpdate() {
 
 void NoFUSSClientClass::handle(bool autoUpdate) {
     _doCallback(NOFUSS_START);
-    DEBUG_MSG_P(PSTR("[NOFUSS] Checking for firmware updates..."));
+    NOFUSS_DEBUG_MSG_P(PSTR("[NOFUSS] Checking for firmware updates..."));
     if (_checkUpdates()){
-        DEBUG_MSG_P(PSTR("[NOFUSS] Should update? %s\n"), (_isCore || autoUpdate)? "yes": "no");
+        NOFUSS_DEBUG_MSG_P(PSTR("[NOFUSS] Should update? %s\n"), (_isCore || autoUpdate)? "yes": "no");
         if(autoUpdate || _isCore){
-            DEBUG_MSG_P(PSTR("[NOFUSS] Updating... "));
+            NOFUSS_DEBUG_MSG_P(PSTR("[NOFUSS] Updating... "));
             _doUpdate();
         }
     }
-    DEBUG_MSG_P(PSTR("[NOFUSS] Done!!!"));
+    NOFUSS_DEBUG_MSG_P(PSTR("[NOFUSS] Done!!!"));
     _doCallback(NOFUSS_END);
 }
 
