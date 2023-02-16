@@ -19,7 +19,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "NoFUSSClient.h"
-
+#include "debug.h"
 #include <ArduinoJson.h>
 #include <ESP8266httpUpdate.h>
 
