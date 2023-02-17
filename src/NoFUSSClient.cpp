@@ -98,7 +98,7 @@ String NoFUSSClientClass::_getPayload() {
     http.useHTTP10(true);
     http.setReuse(false);
     http.setTimeout(NoFUSSTimeout);
-    http.setUserAgent(NoFUSSUserAgent);
+    http.setUserAgent(FPSTR(NoFUSSUserAgent));
     http.addHeader(F("X-ESP8266-MAC"), WiFi.macAddress());
     http.addHeader(F("X-ESP8266-DEVICE"), _device);
     http.addHeader(F("X-ESP8266-VERSION"), _version);

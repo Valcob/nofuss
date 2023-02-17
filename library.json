@@ -6,7 +6,7 @@
         "type": "git",
         "url": "https://github.com/Valcob/nofuss.git"
     },
-    "version": "0.4.7",
+    "version": "0.4.8",
     "license": "GPL-3.0",
     "exclude": "tests",
     "frameworks": "arduino",
