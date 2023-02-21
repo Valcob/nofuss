@@ -131,28 +131,28 @@ bool NoFUSSClientClass::_checkUpdates() {
         return false;
     }
 
-    StaticJsonBuffer<500> jsonBuffer;
-    JsonObject& response = jsonBuffer.parseObject(payload);
+    StaticJsonDocument<500> jsonBuffer;
+    auto error = deserializeJson(jsonBuffer, payload);
 
-    if (!response.success()) {
-        NOFUSS_DEBUG_MSG_P(PSTR("[NOFUSS] Failed to get a successfull response"));
+    if (error) {
+        NOFUSS_DEBUG_MSG_P(PSTR("[NOFUSS] Failed to get a successfull response\n%s"), error.c_str());
         _doCallback(NOFUSS_PARSE_ERROR);
         return false;
     }
 
-    if (response.size() == 0) {
+    if (jsonBuffer.size() == 0) {
         NOFUSS_DEBUG_MSG_P(PSTR("[NOFUSS] The firmware is the latest one"));
         _doCallback(NOFUSS_UPTODATE);
         return false;
     }
 
-    _newVersion = response.get<String>("version");
-    _newFirmware = response.get<String>("firmware");
+    _newVersion = jsonBuffer["version"].as<String>();
+    _newFirmware = jsonBuffer["firmware"].as<String>();
 
-    if (response.containsKey("fs")) {
-        _newFileSystem = response.get<String>("fs");
-    } else if (response.containsKey("spiffs")) {
-        _newFileSystem = response.get<String>("spiffs");
+    if (jsonBuffer.containsKey("fs")) {
+        _newFileSystem = jsonBuffer["fs"].as<String>();
+    } else if (jsonBuffer.containsKey("spiffs")) {
+        _newFileSystem = jsonBuffer["spiffs"].as<String>();
     }
 
     NOFUSS_DEBUG_MSG_P(PSTR("[NOFUSS] There is a new firmware %s\n"), _newVersion.c_str());
