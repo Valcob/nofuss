@@ -22,6 +22,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <ESP8266httpUpdate.h>
 #include <functional>
+#include <pgmspace.h>
 
 typedef enum {
     NOFUSS_START,
@@ -35,16 +36,18 @@ typedef enum {
     NOFUSS_NO_RESPONSE_ERROR,
     NOFUSS_PARSE_ERROR,
     NOFUSS_FILESYSTEM_UPDATE_ERROR,
-    NOFUSS_FIRMWARE_UPDATE_ERROR
+    NOFUSS_FIRMWARE_UPDATE_ERROR,
+    NOFUSS_CONFIGURATION_CRT_ERROR
 } nofuss_t;
 
-class NoFUSSClientClass {
+class NoFUSSClientSecureClass {
 
   public:
 
     typedef std::function<void(nofuss_t)> TMessageFunction;
 
     void setServer(String server);
+    void setServerFingerprint(PGM_P serverFingerprint);
     void setDevice(String device);
     void setVersion(String version);
     void setBuild(String build);
@@ -63,6 +66,7 @@ class NoFUSSClientClass {
   private:
 
     String _server;
+    PGM_P  _serverFingerprint;
     String _device;
     String _version;
     String _build;
@@ -84,6 +88,6 @@ class NoFUSSClientClass {
     void _doCallback(nofuss_t message);
 
 };
-#if !(NOFUSS_SECURE)
-extern NoFUSSClientClass NoFUSSClient;
+#if NOFUSS_SECURE
+extern NoFUSSClientSecureClass NoFUSSClient;
 #endif

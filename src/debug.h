@@ -23,8 +23,6 @@
 #endif
 
 #ifndef DEBUG_NOFUSS
-    #ifndef DEBUG_SUPPORT
-        #define NOFUSS_DEBUG_MSG(...)
-        #define NOFUSS_DEBUG_MSG_P(...)
-    #endif // DEBUG_SUPPORT
+    #define NOFUSS_DEBUG_MSG(...)
+    #define NOFUSS_DEBUG_MSG_P(...)
 #endif 

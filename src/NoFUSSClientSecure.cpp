@@ -18,12 +18,15 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 */
 
-#include "NoFUSSClient.h"
+#include "NoFUSSClientSecure.h"
+#include <pgmspace.h>
 #include "debug.h"
 #include <ArduinoJson.h>
 #include <ESP8266httpUpdate.h>
 
 #include <functional>
+// #include <CertStoreBearSSL.h>
+// BearSSL::CertStore certStore;
 
 const char NoFUSSUserAgent[] PROGMEM = "NoFussClient";
 constexpr unsigned long NoFUSSTimeout { 1000ul };
@@ -39,61 +42,74 @@ String normalizeUrl(const String& server, const String& path) {
 
 } // namespace
 
-void NoFUSSClientClass::setServer(String server) {
+void NoFUSSClientSecureClass::setServer(String server) {
     _server = server;
 }
 
-void NoFUSSClientClass::setDevice(String device) {
+void NoFUSSClientSecureClass::setServerFingerprint(const char *serverFingerprint) {
+    _serverFingerprint = serverFingerprint;
+}
+
+void NoFUSSClientSecureClass::setDevice(String device) {
     _device = device;
 }
 
-void NoFUSSClientClass::setVersion(String version) {
+void NoFUSSClientSecureClass::setVersion(String version) {
     _version = version;
 }
 
-void NoFUSSClientClass::setBuild(String build) {
+void NoFUSSClientSecureClass::setBuild(String build) {
     _build = build;
 }
 
-void NoFUSSClientClass::setFirmwareType(bool isCore) {
+void NoFUSSClientSecureClass::setFirmwareType(bool isCore) {
     _isCore = isCore;
 }
 
-void NoFUSSClientClass::onMessage(TMessageFunction fn) {
+void NoFUSSClientSecureClass::onMessage(TMessageFunction fn) {
     _callback = fn;
 }
 
-String NoFUSSClientClass::getNewVersion() {
+String NoFUSSClientSecureClass::getNewVersion() {
     return _newVersion;
 }
 
-String NoFUSSClientClass::getNewFirmware() {
+String NoFUSSClientSecureClass::getNewFirmware() {
     return _newFirmware;
 }
 
-String NoFUSSClientClass::getNewFileSystem() {
+String NoFUSSClientSecureClass::getNewFileSystem() {
     return _newFileSystem;
 }
 
-int NoFUSSClientClass::getErrorNumber() {
+int NoFUSSClientSecureClass::getErrorNumber() {
     return _errorNumber;
 }
 
-String NoFUSSClientClass::getErrorString() {
+String NoFUSSClientSecureClass::getErrorString() {
     return _errorString;
 }
 
-void NoFUSSClientClass::_doCallback(nofuss_t message) {
+void NoFUSSClientSecureClass::_doCallback(nofuss_t message) {
     if (_callback != NULL) _callback(message);
 }
 
-String NoFUSSClientClass::_getPayload() {
+String NoFUSSClientSecureClass::_getPayload() {
 
     String payload = "";
 
-    WiFiClient client;
+    std::unique_ptr<BearSSL::WiFiClientSecure> client(new BearSSL::WiFiClientSecure);
+#if NOFUSS_SECURE_CERTSTORE
+    bool mfln = client->probeMaxFragmentLength(_server.c_str(), 443, 1024);  // server must be the same as in ESPhttpUpdate.update()
+    NOFUSS_DEBUG_MSG_P(PSTR("MFLN supported: %s\n"), mfln ? "yes" : "no");
+    if (mfln) { client->setBufferSizes(1024, 1024); }
+    client->setCertStore(&certStore);
+#else
+    client->setFingerprint(_serverFingerprint);
+#endif
+
     HTTPClient http;
-    http.begin(client, _server.c_str());
+    http.begin(*client, _server.c_str());
 
     http.useHTTP10(true);
     http.setReuse(false);
@@ -109,7 +125,9 @@ String NoFUSSClientClass::_getPayload() {
     http.addHeader(F("X-ESP8266-CHIPSIZE"), String(ESP.getFlashChipRealSize()));
     http.addHeader(F("X-ESP8266-OTASIZE"), String((ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000));
 
+    yield();
     int httpCode = http.GET();
+    NOFUSS_DEBUG_MSG_P(PSTR("[NOFUSS] Get... %d\n"), httpCode);
     if (httpCode == HTTP_CODE_OK) {
         payload = http.getString();
     } else {
@@ -118,15 +136,20 @@ String NoFUSSClientClass::_getPayload() {
     }
     http.end();
 
+    auto ptr = client.release();
+    delete ptr;
+
     return payload;
 
 }
 
-bool NoFUSSClientClass::_checkUpdates() {
+bool NoFUSSClientSecureClass::_checkUpdates() {
 
     String payload = _getPayload();
+    yield();
+
     if (payload.length() == 0) {
-        NOFUSS_DEBUG_MSG_P(PSTR("[NOFUSS] There is no update."));
+        NOFUSS_DEBUG_MSG_P(PSTR("[NOFUSS] There is no update.\n"));
         _doCallback(NOFUSS_NO_RESPONSE_ERROR);
         return false;
     }
@@ -134,14 +157,16 @@ bool NoFUSSClientClass::_checkUpdates() {
     StaticJsonBuffer<500> jsonBuffer;
     JsonObject& response = jsonBuffer.parseObject(payload);
 
+
     if (!response.success()) {
-        NOFUSS_DEBUG_MSG_P(PSTR("[NOFUSS] Failed to get a successfull response"));
+        NOFUSS_DEBUG_MSG_P(PSTR("[NOFUSS] Failed to get a successfull response\n"));
         _doCallback(NOFUSS_PARSE_ERROR);
         return false;
     }
 
+
     if (response.size() == 0) {
-        NOFUSS_DEBUG_MSG_P(PSTR("[NOFUSS] The firmware is the latest one"));
+        NOFUSS_DEBUG_MSG_P(PSTR("[NOFUSS] The firmware is the latest one\n"));
         _doCallback(NOFUSS_UPTODATE);
         return false;
     }
@@ -158,10 +183,9 @@ bool NoFUSSClientClass::_checkUpdates() {
     NOFUSS_DEBUG_MSG_P(PSTR("[NOFUSS] There is a new firmware %s\n"), _newVersion.c_str());
     _doCallback(NOFUSS_UPDATE_AVAILABLE);
     return true;
-
 }
 
-bool NoFUSSClientClass::_doUpdateCallbacks(t_httpUpdate_return result, nofuss_t success, nofuss_t error) {
+bool NoFUSSClientSecureClass::_doUpdateCallbacks(t_httpUpdate_return result, nofuss_t success, nofuss_t error) {
     if (result == HTTP_UPDATE_OK) {
         _doCallback(success);
         return true;
@@ -174,7 +198,7 @@ bool NoFUSSClientClass::_doUpdateCallbacks(t_httpUpdate_return result, nofuss_t 
     return false;
 }
 
-void NoFUSSClientClass::_doUpdate() {
+void NoFUSSClientSecureClass::_doUpdate() {
 
     bool error = false;
     uint8_t updates = 0;
@@ -184,26 +208,47 @@ void NoFUSSClientClass::_doUpdate() {
     if (_newFileSystem.length() > 0) {
         auto url = normalizeUrl(_server, _newFileSystem);
 
-        WiFiClient client;
-        t_httpUpdate_return ret = ESPhttpUpdate.updateFS(client, url);
+        std::unique_ptr<BearSSL::WiFiClientSecure> client(new BearSSL::WiFiClientSecure);
+#if NOFUSS_SECURE_CERTSTORE
+        bool mfln = client->probeMaxFragmentLength(_server.c_str(), 443, 1024);  // server must be the same as in ESPhttpUpdate.update()
+        NOFUSS_DEBUG_MSG_P(PSTR("MFLN supported: %s\n"), mfln ? "yes" : "no");
+        if (mfln) { client->setBufferSizes(1024, 1024); }
+        client->setCertStore(&certStore);
+#else
+        client->setFingerprint(_serverFingerprint);
+#endif
+        t_httpUpdate_return ret = ESPhttpUpdate.updateFS(*client, url);
         if (_doUpdateCallbacks(ret, NOFUSS_FILESYSTEM_UPDATED, NOFUSS_FILESYSTEM_UPDATE_ERROR)) {
             ++updates;
         } else {
             error = true;
         }
+        auto ptr = client.release();
+        delete ptr;
+
     }
 
     if (!error && (_newFirmware.length() > 0)) {
         auto url = normalizeUrl(_server, _newFirmware);
 
-        WiFiClient client;
-        t_httpUpdate_return ret = ESPhttpUpdate.update(client, url);
+        std::unique_ptr<BearSSL::WiFiClientSecure> client(new BearSSL::WiFiClientSecure);
+#if NOFUSS_SECURE_CERTSTORE
+        bool mfln = client->probeMaxFragmentLength(_server.c_str(), 443, 1024);  // server must be the same as in ESPhttpUpdate.update()
+        NOFUSS_DEBUG_MSG_P(PSTR("MFLN supported: %s\n"), mfln ? "yes" : "no");
+        if (mfln) { client->setBufferSizes(1024, 1024); }
+        client->setCertStore(&certStore);
+#else
+        client->setFingerprint(_serverFingerprint);
+#endif
+        t_httpUpdate_return ret = ESPhttpUpdate.update(*client, url);
 
         if (_doUpdateCallbacks(ret, NOFUSS_FIRMWARE_UPDATED, NOFUSS_FIRMWARE_UPDATE_ERROR)) {
             ++updates;
         } else {
             error = true;
         }
+        auto ptr = client.release();
+        delete ptr;
     }
 
     if (!error && (updates > 0)) {
@@ -213,19 +258,31 @@ void NoFUSSClientClass::_doUpdate() {
 
 }
 
-void NoFUSSClientClass::handle(bool autoUpdate) {
+void NoFUSSClientSecureClass::handle(bool autoUpdate) {
+
+#if NOFUSS_SECURE_CERTSTORE
+    SPIFFS.begin();
+    int numCerts = certStore.initCertStore(SPIFFS, PSTR("/certs.idx"), PSTR("/certs.ar"));
+    NOFUSS_DEBUG_MSG_P(PSTR("[NoFUSS] Number of CA certs read: %d\n"), numCerts);
+
+    if (numCerts == 0) {
+        NOFUSS_DEBUG_MSG_P(PSTR("[NoFUSS] No certs found. Did you run certs-from-mozill.py and upload the SPIFFS directory before running?\n"));
+        _doCallback(NOFUSS_CONFIGURATION_CRT_ERROR);
+        return;  // Can't connect to anything w/o certs!
+    }
+#endif
     _doCallback(NOFUSS_START);
-    NOFUSS_DEBUG_MSG_P(PSTR("[NOFUSS] Checking for firmware updates..."));
+    NOFUSS_DEBUG_MSG_P(PSTR("[NOFUSS] Checking for firmware updates...\n"));
     if (_checkUpdates()){
         NOFUSS_DEBUG_MSG_P(PSTR("[NOFUSS] Should update? %s\n"), (_isCore || autoUpdate)? "yes": "no");
         if(autoUpdate || _isCore){
-            NOFUSS_DEBUG_MSG_P(PSTR("[NOFUSS] Updating... "));
+            NOFUSS_DEBUG_MSG_P(PSTR("[NOFUSS] Updating...\n"));
             _doUpdate();
         }
     }
-    NOFUSS_DEBUG_MSG_P(PSTR("[NOFUSS] Done!!!"));
+    NOFUSS_DEBUG_MSG_P(PSTR("[NOFUSS] Done!!!\n"));
     _doCallback(NOFUSS_END);
 }
-#if !(NOFUSS_SECURE)
-NoFUSSClientClass NoFUSSClient;
+#if NOFUSS_SECURE
+NoFUSSClientSecureClass NoFUSSClient;
 #endif
